@@ -160,7 +160,7 @@ def temperature_start_end(start, end):
     session = Session(engine)
     # Query all stations
        
-    def calc_temps(start_date,end_date):
+    def calc_temps(start_date , end_date):
         """TMIN, TAVG, and TMAX for a list of dates.
     
         Args:
@@ -175,7 +175,7 @@ def temperature_start_end(start, end):
             filter(Measurement.date >= start_date).\
             filter(Measurement.date <= end_date).all()
 
-    results = calc_temps(start,end)
+    results = calc_temps(start , end)
 
     session.close()
     
