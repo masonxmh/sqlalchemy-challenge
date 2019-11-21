@@ -36,7 +36,7 @@ app = Flask(__name__)
 #################################################
  # define date
 last_date='2017-08-23'
-yearAgo_last_date = dt.datetime.strptime(last_date,"%Y-%m-%d")-dt.timedelta(365)
+year_ago_last_date = dt.datetime.strptime(last_date,"%Y-%m-%d")-dt.timedelta(365)
 
 @app.route("/")
 def welcome():
@@ -61,21 +61,21 @@ def precipitation():
    
 
     # Query all precipitation
-    results = session.query(Measurement).\
-        filter(Measurement.date >= yearAgo_last_date).\
-        filter(Measurement.date <= last_date).\
+    results = session.query( Measurement.date,Measurement.station, Measurement.prcp).\
         order_by(Measurement.date).all()
     
     session.close()
 
-    select_prcp = []
-    for x in results:
-        prcp_dict = {}
-        prcp_dict[x.date] = x.prcp
-        select_prcp.append(prcp_dict)
+    prcp_dict={}
+    for i in range(len(results)):
+        if results[i][0] == results[i-1][0]:
+            prcp_dict[results[i-1][0]][results[i][1]]=results[i][2]
+        else:
+            prcp_dict[results[i][0]]={}
+            prcp_dict[results[i][0]][results[i][1]]=results[i][2]
     
 
-    return jsonify(select_prcp)
+    return jsonify(prcp_dict)
 
 
 
@@ -85,17 +85,16 @@ def stations():
     # Create our session (link) from Python to the DB
     session = Session(engine)
     # Query all stations
-    results = session.query(Measurement.station, func.count(Measurement.station)).\
-        group_by(Measurement.station).\
-        order_by(func.count(Measurement.station).desc()).all()
+    results = session.query(Station.station, Station.name).\
+        group_by(Station.station).all()
 
     session.close()
     # Create a dictionary from the row data and append to a list of stations
     station_data = []
-    for station, counts in results:
+    for station, name in results:
         station_dict = {}
         station_dict["station"] = station
-        station_dict["Counts"] = counts
+        station_dict["Name"] = name
         station_data.append(station_dict)
 
     return jsonify(station_data)
@@ -109,17 +108,22 @@ def tobs():
     session = Session(engine)
 
     # Query all stations
+    most_act_station=session.query(Measurement.station).\
+    group_by(Measurement.station).\
+    order_by(func.count(Measurement.station).desc()).first()
+
     results = session.query(Measurement.date, Measurement.tobs).\
-        filter(Measurement.date >= yearAgo_last_date).\
+        filter(Measurement.station == most_act_station[0]).\
+        filter(Measurement.date >= year_ago_last_date).\
         filter(Measurement.date <= last_date).\
         order_by(Measurement.date).all()
     
     session.close()
 
     tobs_data = []
-    for date, temp in results:
+    for d, temp in results:
         tobs_dict = {}
-        tobs_dict["date"] = date
+        tobs_dict["date"] = d
         tobs_dict["tobs"] = temp
         tobs_data.append(tobs_dict)
 
@@ -133,33 +137,21 @@ def temperature_s(date):
     session = Session(engine)
     # Query all stations
        
-    def calc_stemps(start_date):
-        """TMIN, TAVG, and TMAX for a list of dates.
-    
-        Args:
-            start_date (string): A date string in the format %Y-%m-%d
-            end_date (string): A date string in the format %Y-%m-%d
-        
-        Returns:
-            TMIN, TAVE, and TMAX
-        """
-    
-        return session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
-            filter(Measurement.date >= start_date).all()
-
-    results = calc_stemps(date)
+    results=session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+        filter(Measurement.date >= date).\
+        filter(Measurement.date <= last_date).all()
 
     session.close()
-    
-    start_data=[]
-    for s_tob_min,s_tob_ave,s_tob_max in results:
-        start_tobs_dict = {}
-        start_tobs_dict["Minimum Temperature"] = s_tob_min
-        start_tobs_dict["Average Temperature"] = s_tob_ave
-        start_tobs_dict["Maximum Temperature"] = s_tob_max
-        start_data.append(start_tobs_dict)
 
-    return jsonify(start_data)
+    start_tobs_dict = {}
+    for s_tob_min,s_tob_ave,s_tob_max in results:
+        
+        start_tobs_dict["Minimum Temp"] = s_tob_min
+        start_tobs_dict["Average Temp"] = s_tob_ave
+        start_tobs_dict["Maximum Temp"] = s_tob_max
+       
+
+    return jsonify(start_tobs_dict)
 
 
 
